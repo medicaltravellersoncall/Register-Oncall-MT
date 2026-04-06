@@ -1056,7 +1056,7 @@ function renderTable(rows) {
     return;
   }
   tbody.innerHTML = valid.map((r) => {
-    const realIdx = (r._idx !== undefined) ? r._idx : allRows.indexOf(r);
+    const realIdx = r._idx !== undefined ? r._idx : allRows.findIndex(row => row === r);
     return `
     <tr>
       <td style="color:var(--muted);font-weight:600">${r[0]}</td>
@@ -1326,7 +1326,12 @@ let deleteTargetIdx = null;
 function openDelete(idx) {
   deleteTargetIdx = idx;
   const r = allRows[idx];
+  if (!r) { toast('Record tidak ditemukan!', 'error'); return; }
   document.getElementById('deletePatientName').textContent = r[2] || 'ini';
+  // Reset button state
+  const btn = document.getElementById('confirmDeleteBtn');
+  btn.disabled = false;
+  btn.textContent = '🗑 Hapus';
   document.getElementById('deleteModal').classList.add('open');
 }
 function closeDelete() {
@@ -1334,8 +1339,23 @@ function closeDelete() {
   deleteTargetIdx = null;
 }
 async function confirmDelete() {
-  if (deleteTargetIdx === null) return;
-  const rowNum = deleteTargetIdx + 2;
+  if (deleteTargetIdx === null) {
+    toast('Tidak ada record yang dipilih!', 'error');
+    return;
+  }
+  const capturedIdx = deleteTargetIdx; // capture sebelum close
+  // rowNum: +1 untuk skip header, +1 untuk 1-based → idx 0 = row 2
+  const rowNum = capturedIdx + 2;
+
+  if (!CONFIG.scriptUrl) {
+    toast('Apps Script URL belum diset. Buka ⚙️ Settings.', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('confirmDeleteBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Menghapus…';
+
   const payload = { action: 'delete', rowNumber: rowNum };
   try {
     const formData = new URLSearchParams();
@@ -1347,9 +1367,11 @@ async function confirmDelete() {
     });
     closeDelete();
     toast('🗑 Record dihapus!', 'info');
-    setTimeout(() => loadData(), 2000);
+    setTimeout(() => loadData(), 2500);
   } catch(e) {
     toast('Gagal hapus: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.textContent = '🗑 Hapus';
   }
 }
 document.getElementById('deleteModal').addEventListener('click', e => {
@@ -1546,7 +1568,7 @@ function triggerInstall() {
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeDelete()">Batal</button>
-      <button class="btn" style="background:var(--red);color:#fff" onclick="confirmDelete()">🗑 Hapus</button>
+      <button id="confirmDeleteBtn" class="btn" style="background:var(--red);color:#fff" onclick="confirmDelete()">🗑 Hapus</button>
     </div>
   </div>
 </div>
