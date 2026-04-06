@@ -68,27 +68,28 @@
       display: flex; align-items: center; justify-content: space-between;
       height: 64px; gap: 12px;
     }
-    .brand { display: flex; align-items: center; gap: 18px; text-decoration: none; flex-shrink: 0; }
-    .brand-logo { width: 46px; height: 46px; flex-shrink: 0; }
+    .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; flex-shrink: 0; }
+    .brand-logo { width: 44px; height: 44px; flex-shrink: 0; border-radius: 6px; }
     .brand-text { display: flex; flex-direction: column; }
     .brand-title {
       font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 14px; font-weight: 900;
-      color: #0a3d8f; letter-spacing: -.4px;
-      line-height: 1.15;
+      font-size: 13px; font-weight: 900;
+      color: #0a3d8f; letter-spacing: -.3px;
+      line-height: 1.2;
     }
     .brand-oncall {
       font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 14px; font-weight: 900;
-      color: #1aacab; letter-spacing: -.4px;
-      line-height: 1.15;
+      font-size: 13px; font-weight: 900;
+      color: #1aacab; letter-spacing: -.3px;
+      line-height: 1.2;
     }
     .brand-subtitle {
       font-family: 'DM Sans', sans-serif;
-      font-size: 12px; color: #444;
-      margin-top: 4px; font-weight: 400;
+      font-size: 11px; color: #666;
+      margin-top: 2px; font-weight: 400;
+      white-space: nowrap;
     }
-    .brand-subtitle strong { color: #0a3d8f; font-weight: 800; font-size: 12px; }
+    .brand-subtitle strong { color: #0a3d8f; font-weight: 800; font-size: 11px; }
     .header-actions { display: flex; align-items: center; gap: 10px; }
 
     /* ── Nav tabs ── */
@@ -973,6 +974,8 @@ async function loadData() {
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const csv  = await resp.text();
     allRows    = parseCSV(csv).slice(1); // skip header
+    // Tag each row with its index in allRows so delete/edit always finds the right row
+    allRows.forEach((r, i) => { r._idx = i; });
     renderDashboard();
     renderTable(allRows);
     setSyncStatus('ok', 'Synced ' + new Date().toLocaleTimeString('en-ID'));
@@ -1052,7 +1055,9 @@ function renderTable(rows) {
     tbody.innerHTML = `<tr><td colspan="15"><div class="empty-state"><div class="icon">📋</div><h3>No records found</h3></div></td></tr>`;
     return;
   }
-  tbody.innerHTML = valid.map((r, idx) => `
+  tbody.innerHTML = valid.map((r) => {
+    const realIdx = (r._idx !== undefined) ? r._idx : allRows.indexOf(r);
+    return `
     <tr>
       <td style="color:var(--muted);font-weight:600">${r[0]}</td>
       <td>${formatDate(r[1])}</td>
@@ -1069,11 +1074,11 @@ function renderTable(rows) {
       <td>${r[13]? r[13]+' min':'–'}</td>
       <td>${followBadge(r[14])}</td>
       <td style="white-space:nowrap">
-        <button class="btn btn-secondary btn-sm" style="padding:5px 10px;margin-right:4px" onclick="openEdit(${allRows.indexOf(r)})">✏️</button>
-        <button class="btn btn-sm" style="padding:5px 10px;background:#fdeef0;color:var(--red);border:1px solid #f5c0c6" onclick="openDelete(${allRows.indexOf(r)})">🗑</button>
+        <button class="btn btn-secondary btn-sm" style="padding:5px 10px;margin-right:4px" onclick="openEdit(${realIdx})">✏️</button>
+        <button class="btn btn-sm" style="padding:5px 10px;background:#fdeef0;color:var(--red);border:1px solid #f5c0c6" onclick="openDelete(${realIdx})">🗑</button>
       </td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 }
 
 function filterTable() {
