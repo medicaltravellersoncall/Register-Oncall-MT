@@ -485,9 +485,8 @@
         padding: 4px 12px;
       }
 
-      /* Show install banner on mobile always */
-      .install-banner { display: flex; }
-      /* If already installed (standalone), hide it */
+      /* Install banner: shown only when JS sets it visible */
+      /* Do NOT force display:flex here - let JS handle it */
       @media (display-mode: standalone) {
         .install-banner { display: none !important; }
         .bottom-nav { padding-bottom: 8px; }
@@ -1387,59 +1386,98 @@ function toast(msg, type='info', duration=4000) {
 
 // ── PWA Install ──
 let deferredPrompt = null;
+const BANNER_DISMISSED_KEY = 'mt_install_banner_dismissed';
 
-// Must listen BEFORE page fully loads - so put it at top level
+// Check if already installed (standalone mode)
+var isStandalone = window.matchMedia('(display-mode: standalone)').matches
+  || window.navigator.standalone === true;
+
+// Check if iOS
+var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+// Check if Android Chrome
+var isAndroidChrome = /android/i.test(navigator.userAgent) && /chrome/i.test(navigator.userAgent);
+// Check if dismissed before
+var bannerDismissed = localStorage.getItem(BANNER_DISMISSED_KEY) === '1';
+
+// Listen for the native install prompt (Chrome/Android)
 window.addEventListener('beforeinstallprompt', function(e) {
   e.preventDefault();
   deferredPrompt = e;
-  showInstallBanner();
+  // Update install button text
+  var btn = document.getElementById('installBtn');
+  if (btn) btn.textContent = '⬇ Install';
+  if (!isStandalone && !bannerDismissed) showInstallBanner();
 });
 
 window.addEventListener('appinstalled', function() {
   hideInstallBanner();
   deferredPrompt = null;
+  localStorage.setItem(BANNER_DISMISSED_KEY, '1');
 });
 
 function showInstallBanner() {
   var banner = document.getElementById('installBanner');
-  if (banner) {
-    banner.style.display = 'flex';
-    banner.style.removeProperty('display'); // let CSS handle it on desktop
-    banner.classList.add('banner-ready');
-  }
+  if (banner) banner.style.display = 'flex';
 }
 function hideInstallBanner() {
   var banner = document.getElementById('installBanner');
   if (banner) banner.style.display = 'none';
 }
 
-// Detect iOS for instructions
+// Init banner logic on page load
 (function() {
-  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
-  var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
   if (isStandalone) {
-    // Already installed, hide banner
-    var b = document.getElementById('installBanner');
-    if (b) b.style.display = 'none';
-  } else if (isIOS) {
-    // iOS Safari: show manual instructions since beforeinstallprompt doesn't fire
-    var hint = document.getElementById('installHint');
-    if (hint) hint.textContent = 'Safari: tap Share → Add to Home Screen';
+    // Already running as installed app — hide banner
+    hideInstallBanner();
+    return;
   }
+  if (bannerDismissed) {
+    hideInstallBanner();
+    return;
+  }
+  if (isIOS) {
+    // iOS Safari: beforeinstallprompt never fires — show manual hint
+    var hint = document.getElementById('installHint');
+    if (hint) hint.textContent = 'Tap Share (□↑) → "Add to Home Screen"';
+    var btn = document.getElementById('installBtn');
+    if (btn) btn.textContent = '📋 Cara Install';
+    showInstallBanner();
+  }
+  // For Android/desktop: banner will show when beforeinstallprompt fires.
+  // If it doesn't fire (e.g. already dismissed by OS, or not eligible),
+  // banner stays hidden so user isn't confused.
 })();
 
 function triggerInstall() {
   if (deferredPrompt) {
+    // Native install prompt available — use it
     deferredPrompt.prompt();
-    deferredPrompt.userChoice.then(function(result) {
+    deferredPrompt.userChoice.then(function(choice) {
+      if (choice.outcome === 'accepted') {
+        hideInstallBanner();
+        localStorage.setItem(BANNER_DISMISSED_KEY, '1');
+      }
       deferredPrompt = null;
-      hideInstallBanner();
     });
+  } else if (isIOS) {
+    alert('Di Safari iPhone/iPad:\n1. Tap ikon Share (kotak dengan panah atas)\n2. Scroll ke bawah → pilih "Add to Home Screen"\n3. Tap "Add" di pojok kanan atas');
   } else {
-    // Fallback: show manual instruction
-    alert('Untuk install:\n📱 Android: Menu browser (⋮) → "Add to Home Screen"\n🍎 iOS Safari: Share (□↑) → "Add to Home Screen"\n💻 Chrome: Klik ikon ⊕ di address bar');
+    // Android Chrome: beforeinstallprompt belum fired.
+    // Kemungkinan: sudah pernah dismiss prompt OS, atau criteria belum terpenuhi.
+    alert('Untuk install di Android Chrome:\n1. Tap menu ⋮ (tiga titik) di pojok kanan atas\n2. Pilih "Add to Home screen" atau "Install app"\n\nJika menu itu tidak ada, coba:\n- Buka ulang halaman\n- Pastikan koneksi internet aktif');
   }
 }
+
+// Allow hiding banner permanently
+(function() {
+  var closeBtn = document.querySelector('.install-close');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', function() {
+      localStorage.setItem(BANNER_DISMISSED_KEY, '1');
+      hideInstallBanner();
+    });
+  }
+})();
 </script>
 
 <!-- ───────────── EDIT MODAL ───────────── -->
