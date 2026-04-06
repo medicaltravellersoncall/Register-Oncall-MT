@@ -11,8 +11,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
   <meta name="apple-mobile-web-app-title" content="MT On-Call"/>
-  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png"/>
-  <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192x192.png"/>
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png"/>
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192x192.png"/>
+  <link rel="icon" type="image/png" sizes="512x512" href="icon-512x512.png"/>
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -484,8 +485,13 @@
         padding: 4px 12px;
       }
 
-      /* Show install banner */
+      /* Show install banner on mobile always */
       .install-banner { display: flex; }
+      /* If already installed (standalone), hide it */
+      @media (display-mode: standalone) {
+        .install-banner { display: none !important; }
+        .bottom-nav { padding-bottom: 8px; }
+      }
 
       main { padding: 12px 14px; }
 
@@ -631,10 +637,10 @@
       <span class="install-icon">📲</span>
       <div class="install-text">
         <strong>Install MT On-Call</strong>
-        <span>Tambahkan ke layar utama HP kamu</span>
+        <span id="installHint">Tambahkan ke layar utama HP kamu</span>
       </div>
-      <button class="install-btn" id="installBtn">Install</button>
-      <button class="install-close" onclick="document.getElementById('installBanner').style.display='none'">✕</button>
+      <button class="install-btn" id="installBtn" onclick="triggerInstall()">⬇ Install</button>
+      <button class="install-close" onclick="hideInstallBanner()">✕</button>
     </div>
 
     <div class="stats-grid" id="statsGrid">
@@ -931,7 +937,12 @@ function toDateInput(d) {
 // ─── SERVICE WORKER ───
 function registerSW() {
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    navigator.serviceWorker.register('./sw.js', {scope: './'})
+      .then(reg => {
+        // Check for updates periodically
+        reg.update();
+      })
+      .catch(e => console.warn('SW registration failed:', e));
   }
 }
 
@@ -1376,27 +1387,58 @@ function toast(msg, type='info', duration=4000) {
 
 // ── PWA Install ──
 let deferredPrompt = null;
-window.addEventListener('beforeinstallprompt', e => {
+
+// Must listen BEFORE page fully loads - so put it at top level
+window.addEventListener('beforeinstallprompt', function(e) {
   e.preventDefault();
   deferredPrompt = e;
-  const banner = document.getElementById('installBanner');
-  if (banner) banner.style.display = 'flex';
+  showInstallBanner();
 });
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('installBtn')?.addEventListener('click', async () => {
-    if (!deferredPrompt) return;
+
+window.addEventListener('appinstalled', function() {
+  hideInstallBanner();
+  deferredPrompt = null;
+});
+
+function showInstallBanner() {
+  var banner = document.getElementById('installBanner');
+  if (banner) {
+    banner.style.display = 'flex';
+    banner.style.removeProperty('display'); // let CSS handle it on desktop
+    banner.classList.add('banner-ready');
+  }
+}
+function hideInstallBanner() {
+  var banner = document.getElementById('installBanner');
+  if (banner) banner.style.display = 'none';
+}
+
+// Detect iOS for instructions
+(function() {
+  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+  var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  if (isStandalone) {
+    // Already installed, hide banner
+    var b = document.getElementById('installBanner');
+    if (b) b.style.display = 'none';
+  } else if (isIOS) {
+    // iOS Safari: show manual instructions since beforeinstallprompt doesn't fire
+    var hint = document.getElementById('installHint');
+    if (hint) hint.textContent = 'Safari: tap Share → Add to Home Screen';
+  }
+})();
+
+function triggerInstall() {
+  if (deferredPrompt) {
     deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    deferredPrompt = null;
-    document.getElementById('installBanner').style.display = 'none';
-  });
-});
-window.addEventListener('appinstalled', () => {
-  const b = document.getElementById('installBanner');
-  if (b) b.style.display = 'none';
-});
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+    deferredPrompt.userChoice.then(function(result) {
+      deferredPrompt = null;
+      hideInstallBanner();
+    });
+  } else {
+    // Fallback: show manual instruction
+    alert('Untuk install:\n📱 Android: Menu browser (⋮) → "Add to Home Screen"\n🍎 iOS Safari: Share (□↑) → "Add to Home Screen"\n💻 Chrome: Klik ikon ⊕ di address bar');
+  }
 }
 </script>
 
