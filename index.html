@@ -61,19 +61,19 @@
     .header-inner {
       max-width: 1280px; margin: 0 auto;
       display: flex; align-items: center; justify-content: space-between;
-      height: 68px; gap: 16px;
+      height: 80px; gap: 16px;
     }
     .brand { display: flex; align-items: center; gap: 14px; text-decoration: none; }
-    .brand img { height: 46px; width: auto; object-fit: contain; }
+    .brand img { height: 62px; width: auto; object-fit: contain; }
     .brand-text { display: flex; flex-direction: column; line-height: 1.2; }
     .brand-title {
       font-family: 'Plus Jakarta Sans', sans-serif;
-      font-weight: 800; font-size: 15px;
+      font-weight: 800; font-size: 17px;
       color: var(--navy);
       letter-spacing: -.3px;
     }
     .brand-sub {
-      font-size: 11px; font-weight: 500;
+      font-size: 12px; font-weight: 600;
       color: var(--teal); letter-spacing: .4px; text-transform: uppercase;
     }
     .header-actions { display: flex; align-items: center; gap: 10px; }
@@ -594,7 +594,7 @@
         <p class="sub" id="recordCount">Loading…</p>
       </div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-secondary btn-sm" onclick="exportCSV()">📥 Export CSV</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportExcel()">📥 Export Excel</button>
         <button class="btn btn-teal btn-sm" onclick="loadData()">🔄 Refresh</button>
       </div>
     </div>
@@ -614,6 +614,7 @@
           <option value="Pending">Pending</option>
           <option value="No Response">No Response</option>
         </select>
+        <input type="month" id="filterMonth" onchange="filterTable()" title="Filter by month"/>
         <input type="date" id="filterDate" onchange="filterTable()" title="Filter by date"/>
       </div>
       <div class="table-wrap" style="max-height:600px;overflow-y:auto">
@@ -634,10 +635,11 @@
               <th>Delay</th>
               <th>Duration</th>
               <th>Follow Up</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody id="fullTbody">
-            <tr><td colspan="14"><div class="empty-state"><div class="icon">🔄</div><h3>Loading…</h3></div></td></tr>
+            <tr><td colspan="15"><div class="empty-state"><div class="icon">🔄</div><h3>Loading…</h3></div></td></tr>
           </tbody>
         </table>
       </div>
@@ -827,10 +829,10 @@ function renderTable(rows) {
   document.getElementById('recordCount').textContent = `${valid.length} total records`;
   const tbody = document.getElementById('fullTbody');
   if (!valid.length) {
-    tbody.innerHTML = `<tr><td colspan="14"><div class="empty-state"><div class="icon">📋</div><h3>No records found</h3></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="15"><div class="empty-state"><div class="icon">📋</div><h3>No records found</h3></div></td></tr>`;
     return;
   }
-  tbody.innerHTML = valid.map(r => `
+  tbody.innerHTML = valid.map((r, idx) => `
     <tr>
       <td style="color:var(--muted);font-weight:600">${r[0]}</td>
       <td>${formatDate(r[1])}</td>
@@ -846,6 +848,10 @@ function renderTable(rows) {
       <td>${r[11]? r[11]+' min':'–'}</td>
       <td>${r[13]? r[13]+' min':'–'}</td>
       <td>${followBadge(r[14])}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-secondary btn-sm" style="padding:5px 10px;margin-right:4px" onclick="openEdit(${allRows.indexOf(r)})">✏️</button>
+        <button class="btn btn-sm" style="padding:5px 10px;background:#fdeef0;color:var(--red);border:1px solid #f5c0c6" onclick="openDelete(${allRows.indexOf(r)})">🗑</button>
+      </td>
     </tr>
   `).join('');
 }
@@ -854,6 +860,7 @@ function filterTable() {
   const q  = document.getElementById('searchInput').value.toLowerCase();
   const st = document.getElementById('filterStatus').value;
   const fu = document.getElementById('filterFollowUp').value;
+  const mo = document.getElementById('filterMonth').value;
   const dt = document.getElementById('filterDate').value;
 
   const filtered = allRows.filter(r => {
@@ -862,6 +869,7 @@ function filterTable() {
     if (q  && !text.includes(q)) return false;
     if (st && r[10] !== st) return false;
     if (fu && r[14] !== fu) return false;
+    if (mo && !(r[1]||'').startsWith(mo)) return false;
     if (dt && !r[1]?.includes(dt)) return false;
     return true;
   });
@@ -993,18 +1001,135 @@ function resetForm() {
   document.querySelector('[name="serviceDate"]').value = toDateInput(new Date());
 }
 
-// ─── EXPORT CSV ───
-function exportCSV() {
-  const headers = ['No','Service Date','Patient Name','Location','Diagnose','Doctor','Nurse','Driver','Appt Time','Arrival Time','Arrival Status','Delay (min)','Completion','Duration (min)','Follow Up Status','Follow Up Detail'];
-  const rows = allRows.filter(r => r[0]);
-  const csv = [headers, ...rows].map(r => r.map(v => `"${(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
-  const blob = new Blob([csv], {type:'text/csv'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `MT-OnCall-${toDateInput(new Date())}.csv`;
-  a.click();
-  toast('📥 CSV exported!','info');
+// ─── EXPORT EXCEL ───
+async function exportExcel() {
+  // Load SheetJS if not loaded
+  if (!window.XLSX) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  const headers = ['No','Service Date','Patient Name','Location','Diagnose','Doctor Name','Nurse Name','Driver Name','Appointment Time','Actual Arrival Time','Arrival Status','Delay (min)','Completion Time','Treatment Duration (min)','Follow Up Status','Follow Up Detail'];
+  const rows = allRows.filter(r => r[0]).map(r => {
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = r[i]||'');
+    return obj;
+  });
+  const ws = XLSX.utils.json_to_sheet(rows);
+  // Column widths
+  ws['!cols'] = [5,14,22,22,20,18,16,16,12,12,12,10,12,14,14,30].map(w=>({wch:w}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'MT On-Call');
+  XLSX.writeFile(wb, `MT-OnCall-${toDateInput(new Date())}.xlsx`);
+  toast('📥 Excel exported!','info');
 }
+
+
+// ─── EDIT ───
+function openEdit(idx) {
+  const r = allRows[idx];
+  if (!r) return;
+  document.getElementById('editRowIndex').value = idx;
+  document.getElementById('e_serviceDate').value        = r[1]||'';
+  document.getElementById('e_patientName').value        = r[2]||'';
+  document.getElementById('e_location').value           = r[3]||'';
+  document.getElementById('e_diagnose').value           = r[4]||'';
+  document.getElementById('e_doctorName').value         = r[5]||'';
+  document.getElementById('e_nurseName').value          = r[6]||'';
+  document.getElementById('e_driverName').value         = r[7]||'';
+  document.getElementById('e_appointmentTime').value    = r[8]||'';
+  document.getElementById('e_actualArrivalTime').value  = r[9]||'';
+  document.getElementById('e_arrivalStatus').value      = r[10]||'';
+  document.getElementById('e_delayMinutes').value       = r[11]||'';
+  document.getElementById('e_completionTime').value     = r[12]||'';
+  document.getElementById('e_treatmentDuration').value  = r[13]||'';
+  document.getElementById('e_followUpStatus').value     = r[14]||'';
+  document.getElementById('e_followUpDetail').value     = r[15]||'';
+  document.getElementById('editModal').classList.add('open');
+}
+function closeEdit() {
+  document.getElementById('editModal').classList.remove('open');
+}
+async function saveEdit() {
+  const idx = parseInt(document.getElementById('editRowIndex').value);
+  const rowNum = idx + 2; // +1 for header, +1 for 1-based
+
+  const payload = {
+    action: 'update',
+    rowNumber: rowNum,
+    serviceDate:       document.getElementById('e_serviceDate').value,
+    patientName:       document.getElementById('e_patientName').value,
+    location:          document.getElementById('e_location').value,
+    diagnose:          document.getElementById('e_diagnose').value,
+    doctorName:        document.getElementById('e_doctorName').value,
+    nurseName:         document.getElementById('e_nurseName').value,
+    driverName:        document.getElementById('e_driverName').value,
+    appointmentTime:   document.getElementById('e_appointmentTime').value,
+    actualArrivalTime: document.getElementById('e_actualArrivalTime').value,
+    arrivalStatus:     document.getElementById('e_arrivalStatus').value,
+    delayMinutes:      document.getElementById('e_delayMinutes').value,
+    completionTime:    document.getElementById('e_completionTime').value,
+    treatmentDuration: document.getElementById('e_treatmentDuration').value,
+    followUpStatus:    document.getElementById('e_followUpStatus').value,
+    followUpDetail:    document.getElementById('e_followUpDetail').value,
+  };
+
+  try {
+    const formData = new URLSearchParams();
+    formData.append('data', JSON.stringify(payload));
+    await fetch(CONFIG.scriptUrl, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData.toString()
+    });
+    closeEdit();
+    toast('✅ Record updated!', 'success');
+    setTimeout(() => loadData(), 2000);
+  } catch(e) {
+    toast('Gagal update: ' + e.message, 'error');
+  }
+}
+document.getElementById('editModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeEdit();
+});
+
+// ─── DELETE ───
+let deleteTargetIdx = null;
+function openDelete(idx) {
+  deleteTargetIdx = idx;
+  const r = allRows[idx];
+  document.getElementById('deletePatientName').textContent = r[2] || 'ini';
+  document.getElementById('deleteModal').classList.add('open');
+}
+function closeDelete() {
+  document.getElementById('deleteModal').classList.remove('open');
+  deleteTargetIdx = null;
+}
+async function confirmDelete() {
+  if (deleteTargetIdx === null) return;
+  const rowNum = deleteTargetIdx + 2;
+  const payload = { action: 'delete', rowNumber: rowNum };
+  try {
+    const formData = new URLSearchParams();
+    formData.append('data', JSON.stringify(payload));
+    await fetch(CONFIG.scriptUrl, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData.toString()
+    });
+    closeDelete();
+    toast('🗑 Record dihapus!', 'info');
+    setTimeout(() => loadData(), 2000);
+  } catch(e) {
+    toast('Gagal hapus: ' + e.message, 'error');
+  }
+}
+document.getElementById('deleteModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeDelete();
+});
 
 // ─── CONFIG MODAL ───
 function openConfig() {
@@ -1039,5 +1164,72 @@ function toast(msg, type='info', duration=4000) {
   setTimeout(() => el.remove(), duration);
 }
 </script>
+
+<!-- ───────────── EDIT MODAL ───────────── -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header">
+      <span class="modal-title">✏️ Edit Record</span>
+      <button class="btn btn-secondary btn-sm btn-icon" onclick="closeEdit()">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:70vh;overflow-y:auto">
+      <input type="hidden" id="editRowIndex"/>
+      <div class="form-grid">
+        <div class="form-group"><label>Service Date</label><input type="date" id="e_serviceDate"/></div>
+        <div class="form-group"><label>Patient Name</label><input type="text" id="e_patientName"/></div>
+        <div class="form-group"><label>Location</label><input type="text" id="e_location"/></div>
+        <div class="form-group"><label>Diagnose</label><input type="text" id="e_diagnose"/></div>
+        <div class="form-group"><label>Doctor Name</label><input type="text" id="e_doctorName"/></div>
+        <div class="form-group"><label>Nurse Name</label><input type="text" id="e_nurseName"/></div>
+        <div class="form-group"><label>Driver Name</label><input type="text" id="e_driverName"/></div>
+        <div class="form-group"><label>Appointment Time</label><input type="time" id="e_appointmentTime"/></div>
+        <div class="form-group"><label>Actual Arrival Time</label><input type="time" id="e_actualArrivalTime"/></div>
+        <div class="form-group"><label>Arrival Status</label>
+          <select id="e_arrivalStatus">
+            <option value="">-- Select --</option>
+            <option value="On Time">On Time</option>
+            <option value="Late">Late</option>
+            <option value="Early">Early</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Delay (min)</label><input type="number" id="e_delayMinutes" min="0"/></div>
+        <div class="form-group"><label>Completion Time</label><input type="time" id="e_completionTime"/></div>
+        <div class="form-group"><label>Treatment Duration (min)</label><input type="number" id="e_treatmentDuration" min="0"/></div>
+        <div class="form-group"><label>Follow Up Status</label>
+          <select id="e_followUpStatus">
+            <option value="">-- Select --</option>
+            <option value="Done">Done</option>
+            <option value="Pending">Pending</option>
+            <option value="No Response">No Response</option>
+            <option value="N/A">N/A</option>
+          </select>
+        </div>
+        <div class="form-group full"><label>Follow Up Detail</label><textarea id="e_followUpDetail"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeEdit()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEdit()">💾 Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────── CONFIRM DELETE MODAL ───────────── -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <span class="modal-title">🗑 Hapus Record</span>
+      <button class="btn btn-secondary btn-sm btn-icon" onclick="closeDelete()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--text);font-size:14px">Yakin ingin menghapus record <strong id="deletePatientName"></strong>? Data akan dihapus permanen dari Google Sheets.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeDelete()">Batal</button>
+      <button class="btn" style="background:var(--red);color:#fff" onclick="confirmDelete()">🗑 Hapus</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
