@@ -928,6 +928,17 @@ document.addEventListener('DOMContentLoaded', () => {
   setupForm();
   // Pre-fill today
   document.querySelector('[name="serviceDate"]').value = toDateInput(new Date());
+
+  // Modal backdrop close listeners (modals exist in DOM by now)
+  document.getElementById('editModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeEdit();
+  });
+  document.getElementById('deleteModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeDelete();
+  });
+  document.getElementById('configModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeConfig();
+  });
 });
 
 function toDateInput(d) {
@@ -1317,10 +1328,6 @@ async function saveEdit() {
     toast('Gagal update: ' + e.message, 'error');
   }
 }
-document.getElementById('editModal').addEventListener('click', e => {
-  if (e.target === e.currentTarget) closeEdit();
-});
-
 // ─── DELETE ───
 let deleteTargetIdx = null;
 function openDelete(idx) {
@@ -1374,10 +1381,6 @@ async function confirmDelete() {
     btn.textContent = '🗑 Hapus';
   }
 }
-document.getElementById('deleteModal').addEventListener('click', e => {
-  if (e.target === e.currentTarget) closeDelete();
-});
-
 // ─── CONFIG MODAL ───
 function openConfig() {
   document.getElementById('cfgSheetId').value   = CONFIG.sheetId;
@@ -1396,10 +1399,6 @@ function saveConfig() {
   toast('✅ Konfigurasi disimpan!','success');
   loadData();
 }
-document.getElementById('configModal').addEventListener('click', e => {
-  if (e.target === e.currentTarget) closeConfig();
-});
-
 // ─── TOAST ───
 function toast(msg, type='info', duration=4000) {
   const c = document.getElementById('toast-container');
