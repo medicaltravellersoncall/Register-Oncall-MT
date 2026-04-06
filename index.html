@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Medical Travellers On-Call</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#0a3d8f"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="MT On-Call"/>
+  <link rel="apple-touch-icon" href="icons/icon-192x192.png"/>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet"/>
+
+  <style>
+    /* ── Design tokens ── */
+    :root {
+      --navy:       #0a3d8f;
+      --navy-deep:  #072d6b;
+      --navy-light: #1a5abf;
+      --teal:       #1aacab;
+      --teal-light: #22c9c8;
+      --teal-dim:   #d4f4f4;
+      --green:      #2ec86a;
+      --red:        #e8384f;
+      --amber:      #f59e0b;
+      --bg:         #f0f4fb;
+      --surface:    #ffffff;
+      --border:     #dde4f0;
+      --text:       #1a2744;
+      --muted:      #7a8bb0;
+      --radius:     14px;
+      --shadow:     0 2px 16px rgba(10,61,143,.10);
+      --shadow-lg:  0 8px 40px rgba(10,61,143,.16);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 12px rgba(10,61,143,.07);
+    }
+    .header-inner {
+      max-width: 1280px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 68px; gap: 16px;
+    }
+    .brand { display: flex; align-items: center; gap: 14px; text-decoration: none; }
+    .brand img { height: 46px; width: auto; object-fit: contain; }
+    .brand-text { display: flex; flex-direction: column; line-height: 1.2; }
+    .brand-title {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 800; font-size: 15px;
+      color: var(--navy);
+      letter-spacing: -.3px;
+    }
+    .brand-sub {
+      font-size: 11px; font-weight: 500;
+      color: var(--teal); letter-spacing: .4px; text-transform: uppercase;
+    }
+    .header-actions { display: flex; align-items: center; gap: 10px; }
+
+    /* ── Nav tabs ── */
+    .nav-tabs {
+      display: flex; gap: 4px;
+      background: var(--bg); border-radius: 10px;
+      padding: 4px;
+    }
+    .tab-btn {
+      padding: 7px 18px;
+      border: none; border-radius: 7px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all .18s;
+      background: transparent; color: var(--muted);
+    }
+    .tab-btn.active {
+      background: var(--navy); color: #fff;
+      box-shadow: 0 2px 8px rgba(10,61,143,.25);
+    }
+    .tab-btn:not(.active):hover { background: var(--border); color: var(--navy); }
+
+    /* ── Sync status ── */
+    .sync-badge {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 500; color: var(--muted);
+      padding: 5px 10px; border-radius: 20px;
+      background: var(--bg); border: 1px solid var(--border);
+    }
+    .sync-dot { width:8px; height:8px; border-radius:50%; background:var(--muted); }
+    .sync-dot.ok   { background: var(--green); }
+    .sync-dot.busy { background: var(--amber); animation: pulse 1s infinite; }
+    .sync-dot.err  { background: var(--red); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── Main layout ── */
+    main {
+      max-width: 1280px; margin: 0 auto;
+      padding: 28px 24px;
+    }
+
+    /* ── Page title ── */
+    .page-header {
+      display: flex; align-items: flex-end; justify-content: space-between;
+      margin-bottom: 24px; gap: 16px; flex-wrap: wrap;
+    }
+    .page-header h1 {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 22px; font-weight: 800;
+      color: var(--navy); letter-spacing: -.4px;
+    }
+    .page-header .sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+    /* ── Stats cards ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 14px; margin-bottom: 28px;
+    }
+    .stat-card {
+      background: var(--surface); border-radius: var(--radius);
+      padding: 18px 20px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      position: relative; overflow: hidden;
+    }
+    .stat-card::before {
+      content: ''; position: absolute;
+      top: 0; left: 0; right: 0; height: 3px;
+    }
+    .stat-card.blue::before   { background: var(--navy); }
+    .stat-card.teal::before   { background: var(--teal); }
+    .stat-card.green::before  { background: var(--green); }
+    .stat-card.amber::before  { background: var(--amber); }
+    .stat-card.red::before    { background: var(--red); }
+
+    .stat-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; margin-bottom: 10px;
+    }
+    .stat-card.blue  .stat-icon { background: #e6eeff; }
+    .stat-card.teal  .stat-icon { background: var(--teal-dim); }
+    .stat-card.green .stat-icon { background: #e6faf0; }
+    .stat-card.amber .stat-icon { background: #fff8e6; }
+    .stat-card.red   .stat-icon { background: #fdeef0; }
+
+    .stat-value {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 28px; font-weight: 800;
+      color: var(--navy); line-height: 1;
+      margin-bottom: 4px;
+    }
+    .stat-label { font-size: 12px; color: var(--muted); font-weight: 500; }
+
+    /* ── Sections ── */
+    .section { display: none; }
+    .section.active { display: block; }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface); border-radius: var(--radius);
+      border: 1px solid var(--border); box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap;
+    }
+    .card-title {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 15px; font-weight: 700; color: var(--navy);
+    }
+    .card-body { padding: 24px; }
+
+    /* ── Form grid ── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group.span2 { grid-column: span 2; }
+    .form-group.full  { grid-column: 1/-1; }
+
+    label {
+      font-size: 12px; font-weight: 600;
+      color: var(--navy); letter-spacing: .2px; text-transform: uppercase;
+    }
+    label .req { color: var(--red); margin-left: 2px; }
+
+    input, select, textarea {
+      width: 100%; padding: 10px 14px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      font-family: 'DM Sans', sans-serif; font-size: 14px;
+      color: var(--text); background: var(--surface);
+      transition: border-color .15s, box-shadow .15s;
+      outline: none;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--navy);
+      box-shadow: 0 0 0 3px rgba(10,61,143,.10);
+    }
+    input::placeholder, textarea::placeholder { color: var(--muted); }
+    textarea { resize: vertical; min-height: 72px; }
+    select { cursor: pointer; }
+
+    /* ── Fieldset group ── */
+    .fieldset {
+      border: 1.5px solid var(--border); border-radius: 10px;
+      padding: 16px 20px; margin-bottom: 20px;
+      grid-column: 1/-1;
+    }
+    .fieldset legend {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 12px; font-weight: 700;
+      color: var(--teal); padding: 0 8px;
+      letter-spacing: .5px; text-transform: uppercase;
+    }
+
+    /* ── Submit button ── */
+    .btn {
+      padding: 11px 24px; border-radius: 8px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 14px; font-weight: 700;
+      cursor: pointer; border: none;
+      transition: all .18s; display: inline-flex; align-items: center; gap: 8px;
+    }
+    .btn-primary {
+      background: var(--navy); color: #fff;
+      box-shadow: 0 2px 8px rgba(10,61,143,.25);
+    }
+    .btn-primary:hover { background: var(--navy-deep); transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-secondary { background: var(--bg); color: var(--navy); border: 1.5px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--navy); }
+    .btn-teal { background: var(--teal); color: #fff; box-shadow: 0 2px 8px rgba(26,172,171,.3); }
+    .btn-teal:hover { background: #159b9a; }
+    .btn-sm { padding: 7px 14px; font-size: 12px; }
+    .btn-icon { padding: 8px; border-radius: 7px; }
+
+    .form-actions {
+      display: flex; justify-content: flex-end; gap: 10px;
+      margin-top: 24px; padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Alert / toast ── */
+    #toast-container {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .toast {
+      padding: 14px 18px;
+      border-radius: 10px; font-size: 13px; font-weight: 500;
+      box-shadow: var(--shadow-lg);
+      animation: slideUp .25s ease;
+      max-width: 320px; display: flex; align-items: flex-start; gap: 10px;
+    }
+    .toast.success { background: #e8faf2; border-left: 4px solid var(--green); color: #1a6640; }
+    .toast.error   { background: #fdeef0; border-left: 4px solid var(--red);   color: #8b1a26; }
+    .toast.info    { background: #e6eeff; border-left: 4px solid var(--navy);   color: var(--navy); }
+    @keyframes slideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:none} }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; }
+    .data-table {
+      width: 100%; border-collapse: collapse;
+      font-size: 13px;
+    }
+    .data-table thead th {
+      padding: 12px 14px;
+      text-align: left; white-space: nowrap;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 11px; font-weight: 700;
+      color: var(--muted); letter-spacing: .5px; text-transform: uppercase;
+      background: var(--bg);
+      border-bottom: 1.5px solid var(--border);
+      position: sticky; top: 0;
+    }
+    .data-table tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background .1s;
+    }
+    .data-table tbody tr:hover { background: #f7f9ff; }
+    .data-table tbody td {
+      padding: 12px 14px; vertical-align: middle;
+      max-width: 180px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 3px 9px; border-radius: 20px;
+      font-size: 11px; font-weight: 600;
+    }
+    .badge-on-time  { background: #e8faf2; color: #1a6640; }
+    .badge-delayed  { background: #fdeef0; color: #8b1a26; }
+    .badge-done     { background: var(--teal-dim); color: #0d6b6b; }
+    .badge-pending  { background: #fff8e6; color: #92600a; }
+
+    /* ── Search & filter bar ── */
+    .filter-bar {
+      display: flex; gap: 10px; flex-wrap: wrap;
+      padding: 14px 24px; border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .filter-bar input, .filter-bar select {
+      padding: 8px 12px; font-size: 13px; max-width: 220px;
+    }
+
+    /* ── Empty state ── */
+    .empty-state {
+      padding: 60px 20px; text-align: center; color: var(--muted);
+    }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; opacity: .5; }
+    .empty-state h3 {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 16px; font-weight: 700; margin-bottom: 6px; color: var(--navy);
+    }
+
+    /* ── Loading skeleton ── */
+    .skeleton { background: linear-gradient(90deg,#e8edf5 25%,#f0f4fb 50%,#e8edf5 75%); background-size: 200%; animation: shimmer 1.4s infinite; border-radius: 4px; }
+    @keyframes shimmer { 0%{background-position:200%} 100%{background-position:-200%} }
+
+    /* ── Config modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(10,30,70,.5); backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface); border-radius: 18px;
+      box-shadow: var(--shadow-lg);
+      width: 100%; max-width: 480px;
+      animation: modalIn .2s ease;
+    }
+    @keyframes modalIn { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:none} }
+    .modal-header {
+      padding: 20px 24px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .modal-title {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 800; font-size: 16px; color: var(--navy);
+    }
+    .modal-body { padding: 24px; }
+    .modal-footer {
+      padding: 16px 24px; border-top: 1px solid var(--border);
+      display: flex; justify-content: flex-end; gap: 10px;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .header-inner { height: 60px; }
+      .brand img { height: 38px; }
+      .brand-title { font-size: 13px; }
+      main { padding: 16px; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .form-grid { grid-template-columns: 1fr; }
+      .form-group.span2 { grid-column: span 1; }
+      .nav-tabs { overflow-x: auto; }
+      .tab-btn { padding: 7px 12px; font-size: 12px; white-space: nowrap; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ───────────── HEADER ───────────── -->
+<header class="header">
+  <div class="header-inner">
+    <a class="brand" href="#">
+      <img src="logo.jpeg" alt="Medical Travellers On-Call logo"/>
+      <div class="brand-text">
+        <span class="brand-title">Medical Travellers On-Call</span>
+        <span class="brand-sub">Surya Husadha Nusa Dua</span>
+      </div>
+    </a>
+
+    <div class="header-actions">
+      <div class="nav-tabs" id="navTabs">
+        <button class="tab-btn active" data-tab="dashboard">📊 Dashboard</button>
+        <button class="tab-btn" data-tab="register">➕ Register</button>
+        <button class="tab-btn" data-tab="records">📋 Records</button>
+      </div>
+      <div class="sync-badge" id="syncBadge">
+        <div class="sync-dot" id="syncDot"></div>
+        <span id="syncText">–</span>
+      </div>
+      <button class="btn btn-secondary btn-sm btn-icon" title="Settings" onclick="openConfig()">⚙️</button>
+    </div>
+  </div>
+</header>
+
+<!-- ───────────── MAIN ───────────── -->
+<main>
+
+  <!-- ── DASHBOARD TAB ── -->
+  <section class="section active" id="tab-dashboard">
+    <div class="page-header">
+      <div>
+        <h1>Dashboard Overview</h1>
+        <p class="sub" id="dashDate">Loading…</p>
+      </div>
+      <button class="btn btn-teal btn-sm" onclick="loadData()">🔄 Refresh</button>
+    </div>
+
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card blue"><div class="stat-icon">📋</div><div class="stat-value" id="stat-total">–</div><div class="stat-label">Total Records</div></div>
+      <div class="stat-card teal"><div class="stat-icon">📅</div><div class="stat-value" id="stat-today">–</div><div class="stat-label">Today's Cases</div></div>
+      <div class="stat-card green"><div class="stat-icon">✅</div><div class="stat-value" id="stat-ontime">–</div><div class="stat-label">On Time Arrivals</div></div>
+      <div class="stat-card amber"><div class="stat-icon">⏱️</div><div class="stat-value" id="stat-delay">–</div><div class="stat-label">Avg Delay (min)</div></div>
+      <div class="stat-card red"><div class="stat-icon">🔔</div><div class="stat-value" id="stat-followup">–</div><div class="stat-label">Follow Up Done</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Recent Cases</span>
+        <button class="btn btn-secondary btn-sm" onclick="switchTab('records')">View All →</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="recentTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Date</th>
+              <th>Patient</th>
+              <th>Location</th>
+              <th>Diagnose</th>
+              <th>Doctor</th>
+              <th>Status</th>
+              <th>Follow Up</th>
+            </tr>
+          </thead>
+          <tbody id="recentTbody">
+            <tr><td colspan="8"><div class="empty-state"><div class="icon">🔄</div><h3>Loading data…</h3></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── REGISTER TAB ── -->
+  <section class="section" id="tab-register">
+    <div class="page-header">
+      <div>
+        <h1>New On-Call Register</h1>
+        <p class="sub">Input data kunjungan on-call baru</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Form Register</span>
+        <span id="autoNo" style="font-size:12px;color:var(--muted)">No. akan digenerate otomatis</span>
+      </div>
+      <div class="card-body">
+        <form id="registerForm" novalidate>
+
+          <fieldset class="fieldset">
+            <legend>📅 Informasi Kunjungan</legend>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Service Date <span class="req">*</span></label>
+                <input type="date" name="serviceDate" required/>
+              </div>
+              <div class="form-group">
+                <label>Patient Name <span class="req">*</span></label>
+                <input type="text" name="patientName" placeholder="Full name" required/>
+              </div>
+              <div class="form-group">
+                <label>Location <span class="req">*</span></label>
+                <input type="text" name="location" placeholder="Hotel / Villa / Address" required/>
+              </div>
+              <div class="form-group">
+                <label>Diagnose</label>
+                <input type="text" name="diagnose" placeholder="Chief complaint / diagnosis"/>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend>👥 Tim On-Call</legend>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Doctor Name <span class="req">*</span></label>
+                <input type="text" name="doctorName" placeholder="dr. ..." required/>
+              </div>
+              <div class="form-group">
+                <label>Nurse Name</label>
+                <input type="text" name="nurseName" placeholder="Nurse / paramedic"/>
+              </div>
+              <div class="form-group">
+                <label>Driver Name</label>
+                <input type="text" name="driverName" placeholder="Driver name"/>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend>⏰ Waktu & Ketepatan</legend>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Appointment Time</label>
+                <input type="time" name="appointmentTime"/>
+              </div>
+              <div class="form-group">
+                <label>Actual Arrival Time</label>
+                <input type="time" name="actualArrivalTime"/>
+              </div>
+              <div class="form-group">
+                <label>Arrival Status</label>
+                <select name="arrivalStatus">
+                  <option value="">-- Select --</option>
+                  <option value="On Time">✅ On Time</option>
+                  <option value="Late">⚠️ Late</option>
+                  <option value="Early">🟢 Early</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Delay (minutes)</label>
+                <input type="number" name="delayMinutes" placeholder="0" min="0"/>
+              </div>
+              <div class="form-group">
+                <label>Completion Time</label>
+                <input type="time" name="completionTime"/>
+              </div>
+              <div class="form-group">
+                <label>Treatment Duration (min)</label>
+                <input type="number" name="treatmentDuration" placeholder="e.g. 45" min="0"/>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend>📞 Follow Up</legend>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>24h WA Follow Up Status</label>
+                <select name="followUpStatus">
+                  <option value="">-- Select --</option>
+                  <option value="Done">✅ Done</option>
+                  <option value="Pending">⏳ Pending</option>
+                  <option value="No Response">📵 No Response</option>
+                  <option value="N/A">N/A</option>
+                </select>
+              </div>
+              <div class="form-group span2">
+                <label>Detail Follow Up Result</label>
+                <textarea name="followUpDetail" placeholder="Describe the follow up conversation…"></textarea>
+              </div>
+            </div>
+          </fieldset>
+
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="resetForm()">🗑 Clear</button>
+            <button type="submit" class="btn btn-primary" id="submitBtn">
+              <span id="submitText">💾 Submit to Google Sheets</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── RECORDS TAB ── -->
+  <section class="section" id="tab-records">
+    <div class="page-header">
+      <div>
+        <h1>All Records</h1>
+        <p class="sub" id="recordCount">Loading…</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" onclick="exportCSV()">📥 Export CSV</button>
+        <button class="btn btn-teal btn-sm" onclick="loadData()">🔄 Refresh</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="filter-bar">
+        <input type="search" id="searchInput" placeholder="🔍 Search patient, doctor, location…" oninput="filterTable()"/>
+        <select id="filterStatus" onchange="filterTable()">
+          <option value="">All Arrival Status</option>
+          <option value="On Time">On Time</option>
+          <option value="Late">Late</option>
+          <option value="Early">Early</option>
+        </select>
+        <select id="filterFollowUp" onchange="filterTable()">
+          <option value="">All Follow Up</option>
+          <option value="Done">Done</option>
+          <option value="Pending">Pending</option>
+          <option value="No Response">No Response</option>
+        </select>
+        <input type="date" id="filterDate" onchange="filterTable()" title="Filter by date"/>
+      </div>
+      <div class="table-wrap" style="max-height:600px;overflow-y:auto">
+        <table class="data-table" id="fullTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Date</th>
+              <th>Patient</th>
+              <th>Location</th>
+              <th>Diagnose</th>
+              <th>Doctor</th>
+              <th>Nurse</th>
+              <th>Driver</th>
+              <th>Appt</th>
+              <th>Arrived</th>
+              <th>Status</th>
+              <th>Delay</th>
+              <th>Duration</th>
+              <th>Follow Up</th>
+            </tr>
+          </thead>
+          <tbody id="fullTbody">
+            <tr><td colspan="14"><div class="empty-state"><div class="icon">🔄</div><h3>Loading…</h3></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ───────────── TOAST ───────────── -->
+<div id="toast-container"></div>
+
+<!-- ───────────── CONFIG MODAL ───────────── -->
+<div class="modal-overlay" id="configModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">⚙️ Configuration</span>
+      <button class="btn btn-secondary btn-sm btn-icon" onclick="closeConfig()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group" style="margin-bottom:16px">
+        <label>Google Sheets ID</label>
+        <input type="text" id="cfgSheetId" placeholder="1b08nVj..."/>
+        <small style="color:var(--muted);font-size:11px;margin-top:4px;display:block">
+          ID ada di URL spreadsheet setelah /d/ dan sebelum /edit
+        </small>
+      </div>
+      <div class="form-group" style="margin-bottom:16px">
+        <label>Google Apps Script Web App URL</label>
+        <input type="text" id="cfgScriptUrl" placeholder="https://script.google.com/macros/s/…/exec"/>
+        <small style="color:var(--muted);font-size:11px;margin-top:4px;display:block">
+          Deploy Google Apps Script sebagai Web App untuk write access
+        </small>
+      </div>
+      <div style="background:#f0f4fb;border-radius:10px;padding:14px;font-size:12px;color:var(--muted)">
+        <strong style="color:var(--navy)">📖 Setup Guide:</strong><br/>
+        1. Buka Google Sheets → Extensions → Apps Script<br/>
+        2. Paste kode dari <code>apps-script.js</code> yang ada di repo<br/>
+        3. Deploy → New Deployment → Web App → Anyone<br/>
+        4. Copy URL dan paste di sini
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeConfig()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveConfig()">💾 Save Config</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ───
+let CONFIG = {
+  sheetId:   localStorage.getItem('mt_sheetId')   || '1b08nVjbzssSc7xNYPoVGkWpTXrRXlclNc5GrOHfvWH0',
+  scriptUrl: localStorage.getItem('mt_scriptUrl') || '',
+  sheetName: 'Sheet1'
+};
+
+// ─── STATE ───
+let allRows = [];
+
+// ─── INIT ───
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('dashDate').textContent = new Date().toLocaleDateString('en-ID', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  registerSW();
+  loadData();
+  setupForm();
+  // Pre-fill today
+  document.querySelector('[name="serviceDate"]').value = toDateInput(new Date());
+});
+
+function toDateInput(d) {
+  return d.toISOString().split('T')[0];
+}
+
+// ─── SERVICE WORKER ───
+function registerSW() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  }
+}
+
+// ─── TABS ───
+document.getElementById('navTabs').addEventListener('click', e => {
+  const btn = e.target.closest('.tab-btn');
+  if (!btn) return;
+  switchTab(btn.dataset.tab);
+});
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.section').forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+}
+
+// ─── SYNC STATUS ───
+function setSyncStatus(state, text) {
+  const dot = document.getElementById('syncDot');
+  dot.className = 'sync-dot ' + state;
+  document.getElementById('syncText').textContent = text;
+}
+
+// ─── LOAD DATA from Google Sheets (public CSV) ───
+async function loadData() {
+  setSyncStatus('busy', 'Loading…');
+  const url = `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(CONFIG.sheetName)}`;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const csv  = await resp.text();
+    allRows    = parseCSV(csv).slice(1); // skip header
+    renderDashboard();
+    renderTable(allRows);
+    setSyncStatus('ok', 'Synced ' + new Date().toLocaleTimeString('en-ID'));
+  } catch(e) {
+    setSyncStatus('err', 'Error');
+    toast('Gagal memuat data. Pastikan spreadsheet bisa diakses publik.', 'error');
+  }
+}
+
+// ─── CSV PARSER ───
+function parseCSV(text) {
+  const rows = [];
+  const re = /("(?:[^"]|"")*"|[^,\r\n]*)(,|\r?\n|$)/g;
+  let row = [], m;
+  while ((m = re.exec(text)) !== null) {
+    let v = m[1];
+    if (v.startsWith('"')) v = v.slice(1,-1).replace(/""/g,'"');
+    row.push(v.trim());
+    if (m[2] !== ',') { rows.push(row); row = []; }
+    if (m[2] === '') break;
+  }
+  return rows.filter(r => r.some(c => c));
+}
+
+// ─── COLUMNS index map (0-based) ───
+// 0:No 1:ServiceDate 2:PatientName 3:Location 4:Diagnose 5:DoctorName 6:NurseName 7:DriverName
+// 8:AppointmentTime 9:ActualArrivalTime 10:ArrivalStatus 11:Delay 12:CompletionTime
+// 13:TreatmentDuration 14:FollowUpStatus 15:FollowUpDetail
+
+// ─── DASHBOARD ───
+function renderDashboard() {
+  const today = toDateInput(new Date());
+  const valid = allRows.filter(r => r[0]);
+
+  const todayRows = valid.filter(r => r[1] && r[1].includes(today.slice(5))); // loose match
+  const onTime    = valid.filter(r => r[10] === 'On Time').length;
+  const delays    = valid.map(r => parseFloat(r[11])||0).filter(v=>v>0);
+  const avgDelay  = delays.length ? (delays.reduce((a,b)=>a+b,0)/delays.length).toFixed(1) : 0;
+  const followUp  = valid.filter(r => r[14] === 'Done').length;
+
+  document.getElementById('stat-total').textContent   = valid.length;
+  document.getElementById('stat-today').textContent   = todayRows.length;
+  document.getElementById('stat-ontime').textContent  = onTime;
+  document.getElementById('stat-delay').textContent   = avgDelay;
+  document.getElementById('stat-followup').textContent= followUp;
+
+  const recent = valid.slice(-10).reverse();
+  renderRecentTable(recent);
+}
+
+function renderRecentTable(rows) {
+  const tbody = document.getElementById('recentTbody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="icon">📋</div><h3>No records yet</h3><p>Add new on-call cases using the Register tab</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td style="color:var(--muted)">${r[0]||'–'}</td>
+      <td>${formatDate(r[1])}</td>
+      <td style="font-weight:600">${r[2]||'–'}</td>
+      <td>${r[3]||'–'}</td>
+      <td>${r[4]||'–'}</td>
+      <td>${r[5]||'–'}</td>
+      <td>${arrivalBadge(r[10])}</td>
+      <td>${followBadge(r[14])}</td>
+    </tr>
+  `).join('');
+}
+
+// ─── FULL TABLE ───
+function renderTable(rows) {
+  const valid = rows.filter(r => r[0]);
+  document.getElementById('recordCount').textContent = `${valid.length} total records`;
+  const tbody = document.getElementById('fullTbody');
+  if (!valid.length) {
+    tbody.innerHTML = `<tr><td colspan="14"><div class="empty-state"><div class="icon">📋</div><h3>No records found</h3></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = valid.map(r => `
+    <tr>
+      <td style="color:var(--muted);font-weight:600">${r[0]}</td>
+      <td>${formatDate(r[1])}</td>
+      <td style="font-weight:600;min-width:120px">${r[2]||'–'}</td>
+      <td title="${r[3]||''}">${r[3]||'–'}</td>
+      <td title="${r[4]||''}">${r[4]||'–'}</td>
+      <td>${r[5]||'–'}</td>
+      <td>${r[6]||'–'}</td>
+      <td>${r[7]||'–'}</td>
+      <td>${r[8]||'–'}</td>
+      <td>${r[9]||'–'}</td>
+      <td>${arrivalBadge(r[10])}</td>
+      <td>${r[11]? r[11]+' min':'–'}</td>
+      <td>${r[13]? r[13]+' min':'–'}</td>
+      <td>${followBadge(r[14])}</td>
+    </tr>
+  `).join('');
+}
+
+function filterTable() {
+  const q  = document.getElementById('searchInput').value.toLowerCase();
+  const st = document.getElementById('filterStatus').value;
+  const fu = document.getElementById('filterFollowUp').value;
+  const dt = document.getElementById('filterDate').value;
+
+  const filtered = allRows.filter(r => {
+    if (!r[0]) return false;
+    const text = r.join(' ').toLowerCase();
+    if (q  && !text.includes(q)) return false;
+    if (st && r[10] !== st) return false;
+    if (fu && r[14] !== fu) return false;
+    if (dt && !r[1]?.includes(dt)) return false;
+    return true;
+  });
+  renderTable(filtered);
+}
+
+// ─── HELPERS ───
+function formatDate(v) {
+  if (!v) return '–';
+  const d = new Date(v);
+  if (isNaN(d)) return v;
+  return d.toLocaleDateString('en-ID', {day:'2-digit',month:'short',year:'numeric'});
+}
+function arrivalBadge(v) {
+  if (!v) return '<span style="color:var(--muted)">–</span>';
+  const cls = v==='On Time'?'badge-on-time':v==='Late'?'badge-delayed':'badge-done';
+  return `<span class="badge ${cls}">${v}</span>`;
+}
+function followBadge(v) {
+  if (!v) return '<span style="color:var(--muted)">–</span>';
+  const cls = v==='Done'?'badge-done':v==='Pending'?'badge-pending':'badge-delayed';
+  return `<span class="badge ${cls}">${v}</span>`;
+}
+
+// ─── FORM SETUP ───
+function setupForm() {
+  document.getElementById('registerForm').addEventListener('submit', handleSubmit);
+  // Auto-calc delay when times change
+  const apptInput   = document.querySelector('[name="appointmentTime"]');
+  const arrivalInput= document.querySelector('[name="actualArrivalTime"]');
+  const delayInput  = document.querySelector('[name="delayMinutes"]');
+  const statusInput = document.querySelector('[name="arrivalStatus"]');
+  const durationI   = document.querySelector('[name="treatmentDuration"]');
+  const completionI = document.querySelector('[name="completionTime"]');
+
+  function calcDelay() {
+    if (apptInput.value && arrivalInput.value) {
+      const [ah,am] = apptInput.value.split(':').map(Number);
+      const [rh,rm] = arrivalInput.value.split(':').map(Number);
+      const diff = (rh*60+rm) - (ah*60+am);
+      delayInput.value = Math.max(0, diff);
+      statusInput.value = diff <= 0 ? 'On Time' : 'Late';
+    }
+  }
+  function calcDuration() {
+    if (arrivalInput.value && completionI.value) {
+      const [ah,am] = arrivalInput.value.split(':').map(Number);
+      const [ch,cm] = completionI.value.split(':').map(Number);
+      const diff = (ch*60+cm) - (ah*60+am);
+      if (diff > 0) durationI.value = diff;
+    }
+  }
+  apptInput.addEventListener('change', calcDelay);
+  arrivalInput.addEventListener('change', () => { calcDelay(); calcDuration(); });
+  completionI.addEventListener('change', calcDuration);
+}
+
+// ─── SUBMIT ───
+async function handleSubmit(e) {
+  e.preventDefault();
+  const form = e.target;
+  const fd   = new FormData(form);
+  const data = Object.fromEntries(fd);
+
+  // Validate required
+  if (!data.serviceDate || !data.patientName || !data.doctorName || !data.location) {
+    toast('Mohon lengkapi field yang wajib diisi (*)','error');
+    return;
+  }
+
+  if (!CONFIG.scriptUrl) {
+    toast('Apps Script URL belum diset. Buka ⚙️ Settings untuk konfigurasi.','error');
+    openConfig();
+    return;
+  }
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  document.getElementById('submitText').textContent = '⏳ Submitting…';
+
+  const payload = {
+    no:               allRows.filter(r=>r[0]).length + 1,
+    serviceDate:      data.serviceDate,
+    patientName:      data.patientName,
+    location:         data.location,
+    diagnose:         data.diagnose || '',
+    doctorName:       data.doctorName,
+    nurseName:        data.nurseName || '',
+    driverName:       data.driverName || '',
+    appointmentTime:  data.appointmentTime || '',
+    actualArrivalTime:data.actualArrivalTime || '',
+    arrivalStatus:    data.arrivalStatus || '',
+    delayMinutes:     data.delayMinutes || '',
+    completionTime:   data.completionTime || '',
+    treatmentDuration:data.treatmentDuration || '',
+    followUpStatus:   data.followUpStatus || '',
+    followUpDetail:   data.followUpDetail || ''
+  };
+
+  try {
+    const resp = await fetch(CONFIG.scriptUrl, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    const result = await resp.json();
+    if (result.status === 'ok' || result.result === 'success') {
+      toast('✅ Data berhasil disimpan ke Google Sheets!','success');
+      form.reset();
+      document.querySelector('[name="serviceDate"]').value = toDateInput(new Date());
+      await loadData();
+      switchTab('dashboard');
+    } else {
+      throw new Error(result.message || 'Unknown error');
+    }
+  } catch(err) {
+    toast('Gagal menyimpan: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    document.getElementById('submitText').textContent = '💾 Submit to Google Sheets';
+  }
+}
+
+function resetForm() {
+  document.getElementById('registerForm').reset();
+  document.querySelector('[name="serviceDate"]').value = toDateInput(new Date());
+}
+
+// ─── EXPORT CSV ───
+function exportCSV() {
+  const headers = ['No','Service Date','Patient Name','Location','Diagnose','Doctor','Nurse','Driver','Appt Time','Arrival Time','Arrival Status','Delay (min)','Completion','Duration (min)','Follow Up Status','Follow Up Detail'];
+  const rows = allRows.filter(r => r[0]);
+  const csv = [headers, ...rows].map(r => r.map(v => `"${(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `MT-OnCall-${toDateInput(new Date())}.csv`;
+  a.click();
+  toast('📥 CSV exported!','info');
+}
+
+// ─── CONFIG MODAL ───
+function openConfig() {
+  document.getElementById('cfgSheetId').value   = CONFIG.sheetId;
+  document.getElementById('cfgScriptUrl').value = CONFIG.scriptUrl;
+  document.getElementById('configModal').classList.add('open');
+}
+function closeConfig() {
+  document.getElementById('configModal').classList.remove('open');
+}
+function saveConfig() {
+  CONFIG.sheetId   = document.getElementById('cfgSheetId').value.trim();
+  CONFIG.scriptUrl = document.getElementById('cfgScriptUrl').value.trim();
+  localStorage.setItem('mt_sheetId',   CONFIG.sheetId);
+  localStorage.setItem('mt_scriptUrl', CONFIG.scriptUrl);
+  closeConfig();
+  toast('✅ Konfigurasi disimpan!','success');
+  loadData();
+}
+document.getElementById('configModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeConfig();
+});
+
+// ─── TOAST ───
+function toast(msg, type='info', duration=4000) {
+  const c = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  const icons = {success:'✅',error:'❌',info:'ℹ️'};
+  el.innerHTML = `<span>${icons[type]||''}</span><span>${msg}</span>`;
+  c.appendChild(el);
+  setTimeout(() => el.remove(), duration);
+}
+</script>
+</body>
+</html>
