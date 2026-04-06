@@ -1,13 +1,14 @@
 {
   "name": "Medical Travellers On-Call",
   "short_name": "MT On-Call",
-  "description": "Medical Travellers On-Call Management System",
+  "description": "Medical Travellers On-Call Management System – Surya Husadha Nusa Dua",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f0f4fb",
   "theme_color": "#0a3d8f",
   "orientation": "portrait-primary",
   "scope": "./",
+  "lang": "id",
   "icons": [
     {
       "src": "icons/icon-192x192.png",
@@ -20,6 +21,11 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
     }
   ]
 }
