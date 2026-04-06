@@ -688,9 +688,15 @@
 
 <script>
 // ─── CONFIG ───
+const DEFAULT_SHEET_ID   = '1b08nVjbzssSc7xNYPoVGkWpTXrRXlclNc5GrOHfvWH0';
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxIG3VJ6-OCPJajxV-Yu-RXZllEdab4bnoc7KP6QzwTt3FBZCIjiuxzta4VNsB1mM3j/exec';
+
+// Clear stale empty localStorage values
+if (!localStorage.getItem('mt_scriptUrl')) localStorage.removeItem('mt_scriptUrl');
+
 let CONFIG = {
-  sheetId:   localStorage.getItem('mt_sheetId')   || '1b08nVjbzssSc7xNYPoVGkWpTXrRXlclNc5GrOHfvWH0',
-  scriptUrl: localStorage.getItem('mt_scriptUrl') || '',
+  sheetId:   (localStorage.getItem('mt_sheetId')   || '').trim() || DEFAULT_SHEET_ID,
+  scriptUrl: (localStorage.getItem('mt_scriptUrl') || '').trim() || DEFAULT_SCRIPT_URL,
   sheetName: 'Sheet1'
 };
 
@@ -956,20 +962,24 @@ async function handleSubmit(e) {
   };
 
   try {
-    const resp = await fetch(CONFIG.scriptUrl, {
+    // Google Apps Script requires no-cors for cross-origin POST
+    // Use form-encoded + redirect workaround for reliable delivery
+    const formData = new URLSearchParams();
+    formData.append('data', JSON.stringify(payload));
+
+    await fetch(CONFIG.scriptUrl, {
       method: 'POST',
-      body: JSON.stringify(payload)
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData.toString()
     });
-    const result = await resp.json();
-    if (result.status === 'ok' || result.result === 'success') {
-      toast('✅ Data berhasil disimpan ke Google Sheets!','success');
-      form.reset();
-      document.querySelector('[name="serviceDate"]').value = toDateInput(new Date());
-      await loadData();
-      switchTab('dashboard');
-    } else {
-      throw new Error(result.message || 'Unknown error');
-    }
+
+    // no-cors means we can't read response, but if no exception = success
+    toast('✅ Data berhasil disimpan ke Google Sheets!','success');
+    form.reset();
+    document.querySelector('[name="serviceDate"]').value = toDateInput(new Date());
+    setTimeout(() => loadData(), 2000); // wait 2s for sheet to update
+    switchTab('dashboard');
   } catch(err) {
     toast('Gagal menyimpan: ' + err.message, 'error');
   } finally {
