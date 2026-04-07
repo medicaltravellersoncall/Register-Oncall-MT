@@ -906,10 +906,10 @@
 <script>
 // ─── CONFIG ───
 const DEFAULT_SHEET_ID   = '1b08nVjbzssSc7xNYPoVGkWpTXrRXlclNc5GrOHfvWH0';
-const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxIG3VJ6-OCPJajxV-Yu-RXZllEdab4bnoc7KP6QzwTt3FBZCIjiuxzta4VNsB1mM3j/exec';
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyNvRZWI8N6PEZLG_hcSeBhkAGx5knLIRi6eFXko6B8euGv8ZGzHxSVchMJPvHLyUiz/exec';
 
-// Clear stale empty localStorage values
-if (!localStorage.getItem('mt_scriptUrl')) localStorage.removeItem('mt_scriptUrl');
+// Always clear stale script URL from localStorage so new default is used
+localStorage.removeItem('mt_scriptUrl');
 
 let CONFIG = {
   sheetId:   (localStorage.getItem('mt_sheetId')   || '').trim() || DEFAULT_SHEET_ID,
@@ -930,6 +930,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelector('[name="serviceDate"]').value = toDateInput(new Date());
 
   // Modal backdrop close listeners (modals exist in DOM by now)
+  document.getElementById('installModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeInstallModal(false);
+  });
   document.getElementById('editModal').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeEdit();
   });
@@ -1414,97 +1417,136 @@ function toast(msg, type='info', duration=4000) {
 let deferredPrompt = null;
 const BANNER_DISMISSED_KEY = 'mt_install_banner_dismissed';
 
-// Check if already installed (standalone mode)
-var isStandalone = window.matchMedia('(display-mode: standalone)').matches
-  || window.navigator.standalone === true;
-
-// Check if iOS
+var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
-// Check if Android Chrome
-var isAndroidChrome = /android/i.test(navigator.userAgent) && /chrome/i.test(navigator.userAgent);
-// Check if dismissed before
 var bannerDismissed = localStorage.getItem(BANNER_DISMISSED_KEY) === '1';
 
-// Listen for the native install prompt (Chrome/Android)
-window.addEventListener('beforeinstallprompt', function(e) {
-  e.preventDefault();
-  deferredPrompt = e;
-  // Update install button text
-  var btn = document.getElementById('installBtn');
-  if (btn) btn.textContent = '⬇ Install';
-  if (!isStandalone && !bannerDismissed) showInstallBanner();
-});
-
-window.addEventListener('appinstalled', function() {
-  hideInstallBanner();
-  deferredPrompt = null;
-  localStorage.setItem(BANNER_DISMISSED_KEY, '1');
-});
-
-function showInstallBanner() {
-  var banner = document.getElementById('installBanner');
-  if (banner) banner.style.display = 'flex';
-}
+// Hide old banner (no longer used)
 function hideInstallBanner() {
-  var banner = document.getElementById('installBanner');
-  if (banner) banner.style.display = 'none';
+  var b = document.getElementById('installBanner');
+  if (b) b.style.display = 'none';
+}
+hideInstallBanner();
+
+// ── Install Modal (popup tengah layar) ──
+function showInstallModal(mode) {
+  // mode: 'android' | 'ios' | 'manual'
+  var modal = document.getElementById('installModal');
+  if (!modal) return;
+  var bodyAndroid = document.getElementById('imBodyAndroid');
+  var bodyIOS     = document.getElementById('imBodyIOS');
+  var bodyManual  = document.getElementById('imBodyManual');
+  var btnInstall  = document.getElementById('imInstallBtn');
+
+  bodyAndroid.style.display = 'none';
+  bodyIOS.style.display     = 'none';
+  bodyManual.style.display  = 'none';
+
+  if (mode === 'android') {
+    bodyAndroid.style.display = 'block';
+    btnInstall.style.display  = 'inline-flex';
+  } else if (mode === 'ios') {
+    bodyIOS.style.display    = 'block';
+    btnInstall.style.display = 'none';
+  } else {
+    bodyManual.style.display = 'block';
+    btnInstall.style.display = 'none';
+  }
+  modal.classList.add('open');
 }
 
-// Init banner logic on page load
-(function() {
-  if (isStandalone) {
-    // Already running as installed app — hide banner
-    hideInstallBanner();
-    return;
-  }
-  if (bannerDismissed) {
-    hideInstallBanner();
-    return;
-  }
-  if (isIOS) {
-    // iOS Safari: beforeinstallprompt never fires — show manual hint
-    var hint = document.getElementById('installHint');
-    if (hint) hint.textContent = 'Tap Share (□↑) → "Add to Home Screen"';
-    var btn = document.getElementById('installBtn');
-    if (btn) btn.textContent = '📋 Cara Install';
-    showInstallBanner();
-  }
-  // For Android/desktop: banner will show when beforeinstallprompt fires.
-  // If it doesn't fire (e.g. already dismissed by OS, or not eligible),
-  // banner stays hidden so user isn't confused.
-})();
+function closeInstallModal(permanent) {
+  document.getElementById('installModal').classList.remove('open');
+  if (permanent) localStorage.setItem(BANNER_DISMISSED_KEY, '1');
+}
 
 function triggerInstall() {
   if (deferredPrompt) {
-    // Native install prompt available — use it
+    closeInstallModal(false);
     deferredPrompt.prompt();
-    deferredPrompt.userChoice.then(function(choice) {
-      if (choice.outcome === 'accepted') {
-        hideInstallBanner();
-        localStorage.setItem(BANNER_DISMISSED_KEY, '1');
-      }
+    deferredPrompt.userChoice.then(function(c) {
+      if (c.outcome === 'accepted') localStorage.setItem(BANNER_DISMISSED_KEY, '1');
       deferredPrompt = null;
     });
   } else if (isIOS) {
-    alert('Di Safari iPhone/iPad:\n1. Tap ikon Share (kotak dengan panah atas)\n2. Scroll ke bawah → pilih "Add to Home Screen"\n3. Tap "Add" di pojok kanan atas');
+    showInstallModal('ios');
   } else {
-    // Android Chrome: beforeinstallprompt belum fired.
-    // Kemungkinan: sudah pernah dismiss prompt OS, atau criteria belum terpenuhi.
-    alert('Untuk install di Android Chrome:\n1. Tap menu ⋮ (tiga titik) di pojok kanan atas\n2. Pilih "Add to Home screen" atau "Install app"\n\nJika menu itu tidak ada, coba:\n- Buka ulang halaman\n- Pastikan koneksi internet aktif');
+    showInstallModal('manual');
   }
 }
 
-// Allow hiding banner permanently
-(function() {
-  var closeBtn = document.querySelector('.install-close');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', function() {
-      localStorage.setItem(BANNER_DISMISSED_KEY, '1');
-      hideInstallBanner();
-    });
+// Listen for native Android/Chrome prompt
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  deferredPrompt = e;
+  if (!isStandalone && !bannerDismissed) {
+    // Delay 1.5s so page loads first, then show popup
+    setTimeout(function() { showInstallModal('android'); }, 1500);
   }
-})();
+});
+
+window.addEventListener('appinstalled', function() {
+  closeInstallModal(true);
+  deferredPrompt = null;
+});
+
+// iOS: show popup on load (no beforeinstallprompt on iOS)
+if (!isStandalone && !bannerDismissed && isIOS) {
+  setTimeout(function() { showInstallModal('ios'); }, 1500);
+}
 </script>
+
+<!-- ───────────── INSTALL MODAL ───────────── -->
+<div class="modal-overlay" id="installModal">
+  <div class="modal" style="max-width:360px;text-align:center">
+    <div class="modal-header" style="justify-content:center;position:relative">
+      <span class="modal-title">📲 Install MT On-Call</span>
+      <button class="btn btn-secondary btn-sm btn-icon" onclick="closeInstallModal(true)" style="position:absolute;right:16px">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:52px;margin-bottom:12px">🏥</div>
+
+      <!-- Android -->
+      <div id="imBodyAndroid">
+        <p style="font-size:14px;color:var(--text);margin-bottom:8px">
+          <strong>Tambahkan ke layar utama HP</strong> untuk akses cepat tanpa buka browser!
+        </p>
+        <ul style="text-align:left;font-size:13px;color:var(--muted);line-height:1.8;list-style:none;padding:0">
+          <li>⚡ Buka lebih cepat</li>
+          <li>📶 Bisa dipakai offline</li>
+          <li>🔔 Tampil seperti app asli</li>
+        </ul>
+      </div>
+
+      <!-- iOS -->
+      <div id="imBodyIOS" style="display:none">
+        <p style="font-size:14px;color:var(--text);margin-bottom:12px">
+          <strong>Install di iPhone/iPad:</strong>
+        </p>
+        <ol style="text-align:left;font-size:13px;color:var(--muted);line-height:2;padding-left:20px">
+          <li>Tap ikon <strong>Share</strong> (□↑) di bawah browser</li>
+          <li>Scroll → pilih <strong>"Add to Home Screen"</strong></li>
+          <li>Tap <strong>"Add"</strong> di pojok kanan atas</li>
+        </ol>
+      </div>
+
+      <!-- Manual -->
+      <div id="imBodyManual" style="display:none">
+        <p style="font-size:14px;color:var(--text);margin-bottom:12px">
+          <strong>Install di Android Chrome:</strong>
+        </p>
+        <ol style="text-align:left;font-size:13px;color:var(--muted);line-height:2;padding-left:20px">
+          <li>Tap menu <strong>⋮</strong> di pojok kanan atas</li>
+          <li>Pilih <strong>"Add to Home screen"</strong> atau <strong>"Install app"</strong></li>
+        </ol>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:center;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-secondary" onclick="closeInstallModal(true)" style="font-size:12px">Jangan tampilkan lagi</button>
+      <button id="imInstallBtn" class="btn btn-primary" onclick="triggerInstall()">⬇ Install Sekarang</button>
+    </div>
+  </div>
+</div>
 
 <!-- ───────────── EDIT MODAL ───────────── -->
 <div class="modal-overlay" id="editModal">
