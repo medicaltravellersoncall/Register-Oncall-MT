@@ -411,6 +411,8 @@
       .form-group.span2 { grid-column: span 1; }
       .nav-tabs { overflow-x: auto; }
       .tab-btn { padding: 7px 12px; font-size: 12px; white-space: nowrap; }
+      #chartsGrid { grid-template-columns: 1fr !important; }
+      #chartsGrid .card[style*="grid-column"] { grid-column: 1 !important; }
     }
 
     /* ── Hide desktop nav-tabs in header on mobile ── */
@@ -658,6 +660,36 @@
       <div class="stat-card green"><div class="stat-icon">✅</div><div class="stat-value" id="stat-ontime">–</div><div class="stat-label">On Time Arrivals</div></div>
       <div class="stat-card amber"><div class="stat-icon">⏱️</div><div class="stat-value" id="stat-delay">–</div><div class="stat-label">Avg Delay (min)</div></div>
       <div class="stat-card red"><div class="stat-icon">🔔</div><div class="stat-value" id="stat-followup">–</div><div class="stat-label">Follow Up Done</div></div>
+    </div>
+
+    <!-- ── CHARTS ── -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px" id="chartsGrid">
+      <!-- Kunjungan per bulan -->
+      <div class="card" style="grid-column:1/-1">
+        <div class="card-header">
+          <span class="card-title">📈 Kunjungan per Bulan</span>
+          <select id="chartYearFilter" onchange="renderCharts()" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--border)"></select>
+        </div>
+        <div style="padding:16px 20px">
+          <canvas id="chartMonthly" height="80"></canvas>
+        </div>
+      </div>
+      <!-- Arrival Status -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">🕐 Arrival Status</span></div>
+        <div style="padding:16px;display:flex;align-items:center;justify-content:center;min-height:200px">
+          <canvas id="chartArrival" style="max-width:200px;max-height:200px"></canvas>
+        </div>
+        <div id="legendArrival" style="padding:0 16px 16px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center"></div>
+      </div>
+      <!-- Follow Up Status -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">📞 Follow Up Status</span></div>
+        <div style="padding:16px;display:flex;align-items:center;justify-content:center;min-height:200px">
+          <canvas id="chartFollowUp" style="max-width:200px;max-height:200px"></canvas>
+        </div>
+        <div id="legendFollowUp" style="padding:0 16px 16px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center"></div>
+      </div>
     </div>
 
     <div class="card">
@@ -1026,11 +1058,13 @@ function parseCSV(text) {
 // 13:TreatmentDuration 14:FollowUpStatus 15:FollowUpDetail
 
 // ─── DASHBOARD ───
+let chartMonthly = null, chartArrival = null, chartFollowUp = null;
+
 function renderDashboard() {
   const today = toDateInput(new Date());
   const valid = allRows.filter(r => r[0]);
 
-  const todayRows = valid.filter(r => r[1] && r[1].includes(today.slice(5))); // loose match
+  const todayRows = valid.filter(r => r[1] && r[1].includes(today.slice(5)));
   const onTime    = valid.filter(r => r[10] === 'On Time').length;
   const delays    = valid.map(r => parseFloat(r[11])||0).filter(v=>v>0);
   const avgDelay  = delays.length ? (delays.reduce((a,b)=>a+b,0)/delays.length).toFixed(1) : 0;
@@ -1038,12 +1072,150 @@ function renderDashboard() {
 
   document.getElementById('stat-total').textContent   = valid.length;
   document.getElementById('stat-today').textContent   = todayRows.length;
-  document.getElementById('stat-ontime').textContent  = onTime;
+
+  const onTimePct = valid.length ? Math.round(onTime / valid.length * 100) : 0;
+  document.getElementById('stat-ontime').innerHTML =
+    `${onTime} <span style="font-size:13px;font-weight:600;color:var(--green)">(${onTimePct}%)</span>`;
+
   document.getElementById('stat-delay').textContent   = avgDelay;
-  document.getElementById('stat-followup').textContent= followUp;
+
+  const followUpPct = valid.length ? Math.round(followUp / valid.length * 100) : 0;
+  document.getElementById('stat-followup').innerHTML =
+    `${followUp} <span style="font-size:13px;font-weight:600;color:var(--teal)">(${followUpPct}%)</span>`;
 
   const recent = valid.slice(-10).reverse();
   renderRecentTable(recent);
+
+  loadChartJs().then(() => renderCharts());
+}
+
+async function loadChartJs() {
+  if (window.Chart) return;
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
+    s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+
+function renderCharts() {
+  if (!window.Chart) return;
+  const valid = allRows.filter(r => r[0]);
+
+  // ── Populate year filter ──
+  const years = [...new Set(valid.map(r => (r[1]||'').slice(0,4)).filter(Boolean))].sort().reverse();
+  const yearSel = document.getElementById('chartYearFilter');
+  const currentYear = yearSel.value || (years[0] || new Date().getFullYear().toString());
+  if (yearSel.options.length !== years.length) {
+    yearSel.innerHTML = years.map(y => `<option value="${y}" ${y===currentYear?'selected':''}>${y}</option>`).join('');
+  }
+
+  // ── Monthly visits bar chart ──
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthlyCounts = Array(12).fill(0);
+  const monthlyOnTime = Array(12).fill(0);
+  valid.filter(r => (r[1]||'').startsWith(currentYear)).forEach(r => {
+    const mo = parseInt((r[1]||'').slice(5,7)) - 1;
+    if (mo >= 0 && mo < 12) {
+      monthlyCounts[mo]++;
+      if (r[10] === 'On Time') monthlyOnTime[mo]++;
+    }
+  });
+
+  if (chartMonthly) chartMonthly.destroy();
+  chartMonthly = new Chart(document.getElementById('chartMonthly'), {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets: [
+        {
+          label: 'Total Kunjungan',
+          data: monthlyCounts,
+          backgroundColor: 'rgba(10,61,143,0.15)',
+          borderColor: '#0a3d8f',
+          borderWidth: 2,
+          borderRadius: 6,
+          borderSkipped: false,
+        },
+        {
+          label: 'On Time',
+          data: monthlyOnTime,
+          backgroundColor: 'rgba(46,200,106,0.25)',
+          borderColor: '#2ec86a',
+          borderWidth: 2,
+          borderRadius: 6,
+          borderSkipped: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } } },
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } }, grid: { color: '#eef0f5' } },
+        x: { ticks: { font: { size: 11 } }, grid: { display: false } }
+      }
+    }
+  });
+
+  // ── Arrival Status donut ──
+  const arrivalMap = { 'On Time': 0, 'Late': 0, 'Early': 0, 'N/A': 0 };
+  valid.forEach(r => {
+    const k = r[10] || 'N/A';
+    arrivalMap[k] = (arrivalMap[k] || 0) + 1;
+  });
+  const arrLabels = Object.keys(arrivalMap).filter(k => arrivalMap[k] > 0);
+  const arrData   = arrLabels.map(k => arrivalMap[k]);
+  const arrColors = { 'On Time':'#2ec86a', 'Late':'#e8384f', 'Early':'#1aacab', 'N/A':'#c0c8da' };
+
+  if (chartArrival) chartArrival.destroy();
+  chartArrival = new Chart(document.getElementById('chartArrival'), {
+    type: 'doughnut',
+    data: {
+      labels: arrLabels,
+      datasets: [{ data: arrData, backgroundColor: arrLabels.map(k => arrColors[k]||'#aaa'), borderWidth: 2, borderColor: '#fff' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true, cutout: '65%',
+      plugins: { legend: { display: false } }
+    }
+  });
+  document.getElementById('legendArrival').innerHTML = arrLabels.map((k,i) =>
+    `<span style="display:flex;align-items:center;gap:5px;font-size:12px">
+      <span style="width:10px;height:10px;border-radius:50%;background:${arrColors[k]||'#aaa'};flex-shrink:0"></span>
+      ${k} <strong>(${arrData[i]})</strong>
+    </span>`
+  ).join('');
+
+  // ── Follow Up Status donut ──
+  const fuMap = { 'Done': 0, 'Pending': 0, 'No Response': 0, 'N/A': 0 };
+  valid.forEach(r => {
+    const k = r[14] || 'N/A';
+    fuMap[k] = (fuMap[k] || 0) + 1;
+  });
+  const fuLabels = Object.keys(fuMap).filter(k => fuMap[k] > 0);
+  const fuData   = fuLabels.map(k => fuMap[k]);
+  const fuColors = { 'Done':'#1aacab', 'Pending':'#f59e0b', 'No Response':'#e8384f', 'N/A':'#c0c8da' };
+
+  if (chartFollowUp) chartFollowUp.destroy();
+  chartFollowUp = new Chart(document.getElementById('chartFollowUp'), {
+    type: 'doughnut',
+    data: {
+      labels: fuLabels,
+      datasets: [{ data: fuData, backgroundColor: fuLabels.map(k => fuColors[k]||'#aaa'), borderWidth: 2, borderColor: '#fff' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true, cutout: '65%',
+      plugins: { legend: { display: false } }
+    }
+  });
+  document.getElementById('legendFollowUp').innerHTML = fuLabels.map((k,i) =>
+    `<span style="display:flex;align-items:center;gap:5px;font-size:12px">
+      <span style="width:10px;height:10px;border-radius:50%;background:${fuColors[k]||'#aaa'};flex-shrink:0"></span>
+      ${k} <strong>(${fuData[i]})</strong>
+    </span>`
+  ).join('');
 }
 
 function renderRecentTable(rows) {
