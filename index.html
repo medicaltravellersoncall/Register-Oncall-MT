@@ -930,9 +930,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelector('[name="serviceDate"]').value = toDateInput(new Date());
 
   // Modal backdrop close listeners (modals exist in DOM by now)
-  document.getElementById('installModal').addEventListener('click', e => {
-    if (e.target === e.currentTarget) closeInstallModal(false);
-  });
   document.getElementById('editModal').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeEdit();
   });
@@ -1421,130 +1418,56 @@ var isStandalone = window.matchMedia('(display-mode: standalone)').matches || wi
 var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
 var bannerDismissed = localStorage.getItem(BANNER_DISMISSED_KEY) === '1';
 
-// Hide old banner (no longer used)
-function hideInstallBanner() {
-  var b = document.getElementById('installBanner');
+function showTopBanner() {
+  if (isStandalone || bannerDismissed) return;
+  var b = document.getElementById('topInstallBar');
+  if (b) b.style.display = 'flex';
+}
+function hideTopBanner(permanent) {
+  var b = document.getElementById('topInstallBar');
   if (b) b.style.display = 'none';
-}
-hideInstallBanner();
-
-// ── Install Modal (popup tengah layar) ──
-function showInstallModal(mode) {
-  // mode: 'android' | 'ios' | 'manual'
-  var modal = document.getElementById('installModal');
-  if (!modal) return;
-  var bodyAndroid = document.getElementById('imBodyAndroid');
-  var bodyIOS     = document.getElementById('imBodyIOS');
-  var bodyManual  = document.getElementById('imBodyManual');
-  var btnInstall  = document.getElementById('imInstallBtn');
-
-  bodyAndroid.style.display = 'none';
-  bodyIOS.style.display     = 'none';
-  bodyManual.style.display  = 'none';
-
-  if (mode === 'android') {
-    bodyAndroid.style.display = 'block';
-    btnInstall.style.display  = 'inline-flex';
-  } else if (mode === 'ios') {
-    bodyIOS.style.display    = 'block';
-    btnInstall.style.display = 'none';
-  } else {
-    bodyManual.style.display = 'block';
-    btnInstall.style.display = 'none';
-  }
-  modal.classList.add('open');
-}
-
-function closeInstallModal(permanent) {
-  document.getElementById('installModal').classList.remove('open');
   if (permanent) localStorage.setItem(BANNER_DISMISSED_KEY, '1');
 }
 
 function triggerInstall() {
   if (deferredPrompt) {
-    closeInstallModal(false);
+    hideTopBanner(false);
     deferredPrompt.prompt();
     deferredPrompt.userChoice.then(function(c) {
-      if (c.outcome === 'accepted') localStorage.setItem(BANNER_DISMISSED_KEY, '1');
+      if (c.outcome === 'accepted') hideTopBanner(true);
       deferredPrompt = null;
     });
   } else if (isIOS) {
-    showInstallModal('ios');
+    alert('Di Safari iPhone:\n1. Tap ikon Share (□↑)\n2. Pilih "Add to Home Screen"\n3. Tap "Add"');
+    hideTopBanner(true);
   } else {
-    showInstallModal('manual');
+    alert('Tap menu ⋮ di Chrome → "Add to Home screen"');
+    hideTopBanner(true);
   }
 }
 
-// Listen for native Android/Chrome prompt
 window.addEventListener('beforeinstallprompt', function(e) {
   e.preventDefault();
   deferredPrompt = e;
-  if (!isStandalone && !bannerDismissed) {
-    // Delay 1.5s so page loads first, then show popup
-    setTimeout(function() { showInstallModal('android'); }, 1500);
-  }
+  setTimeout(showTopBanner, 1000);
 });
 
 window.addEventListener('appinstalled', function() {
-  closeInstallModal(true);
+  hideTopBanner(true);
   deferredPrompt = null;
 });
 
-// iOS: show popup on load (no beforeinstallprompt on iOS)
 if (!isStandalone && !bannerDismissed && isIOS) {
-  setTimeout(function() { showInstallModal('ios'); }, 1500);
+  setTimeout(showTopBanner, 1000);
 }
 </script>
 
-<!-- ───────────── INSTALL MODAL ───────────── -->
-<div class="modal-overlay" id="installModal">
-  <div class="modal" style="max-width:360px;text-align:center">
-    <div class="modal-header" style="justify-content:center;position:relative">
-      <span class="modal-title">📲 Install MT On-Call</span>
-      <button class="btn btn-secondary btn-sm btn-icon" onclick="closeInstallModal(true)" style="position:absolute;right:16px">✕</button>
-    </div>
-    <div class="modal-body">
-      <div style="font-size:52px;margin-bottom:12px">🏥</div>
-
-      <!-- Android -->
-      <div id="imBodyAndroid">
-        <p style="font-size:14px;color:var(--text);margin-bottom:8px">
-          <strong>Tambahkan ke layar utama HP</strong> untuk akses cepat tanpa buka browser!
-        </p>
-        <ul style="text-align:left;font-size:13px;color:var(--muted);line-height:1.8;list-style:none;padding:0">
-          <li>⚡ Buka lebih cepat</li>
-          <li>📶 Bisa dipakai offline</li>
-          <li>🔔 Tampil seperti app asli</li>
-        </ul>
-      </div>
-
-      <!-- iOS -->
-      <div id="imBodyIOS" style="display:none">
-        <p style="font-size:14px;color:var(--text);margin-bottom:12px">
-          <strong>Install di iPhone/iPad:</strong>
-        </p>
-        <ol style="text-align:left;font-size:13px;color:var(--muted);line-height:2;padding-left:20px">
-          <li>Tap ikon <strong>Share</strong> (□↑) di bawah browser</li>
-          <li>Scroll → pilih <strong>"Add to Home Screen"</strong></li>
-          <li>Tap <strong>"Add"</strong> di pojok kanan atas</li>
-        </ol>
-      </div>
-
-      <!-- Manual -->
-      <div id="imBodyManual" style="display:none">
-        <p style="font-size:14px;color:var(--text);margin-bottom:12px">
-          <strong>Install di Android Chrome:</strong>
-        </p>
-        <ol style="text-align:left;font-size:13px;color:var(--muted);line-height:2;padding-left:20px">
-          <li>Tap menu <strong>⋮</strong> di pojok kanan atas</li>
-          <li>Pilih <strong>"Add to Home screen"</strong> atau <strong>"Install app"</strong></li>
-        </ol>
-      </div>
-    </div>
-    <div class="modal-footer" style="justify-content:center;gap:10px;flex-wrap:wrap">
-      <button class="btn btn-secondary" onclick="closeInstallModal(true)" style="font-size:12px">Jangan tampilkan lagi</button>
-      <button id="imInstallBtn" class="btn btn-primary" onclick="triggerInstall()">⬇ Install Sekarang</button>
-    </div>
+<!-- ───────────── TOP INSTALL BAR ───────────── -->
+<div id="topInstallBar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--navy);color:#fff;padding:10px 16px;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 2px 12px rgba(0,0,0,.3)">
+  <span style="font-size:13px;font-weight:600">📲 Install MT On-Call ke HP kamu</span>
+  <div style="display:flex;gap:8px;flex-shrink:0">
+    <button onclick="triggerInstall()" style="background:#fff;color:var(--navy);border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">⬇ Install</button>
+    <button onclick="hideTopBanner(true)" style="background:transparent;border:none;color:rgba(255,255,255,.7);font-size:18px;cursor:pointer;padding:0 4px">✕</button>
   </div>
 </div>
 
